@@ -19,6 +19,7 @@ public class Codegen{
 	ArrayList < ArrayList <Integer> > classGraph;
 	HashMap <Integer, String> idxName;
 	HashMap <String, AST.class_> idxCont;
+	ArrayList <String> attributes;
 	int var_counter = 0;
 	int label_ct = 0;
 	int ret_val = -1;
@@ -34,6 +35,7 @@ public class Codegen{
 		this.out = out;
 		
 		IRclassTable = new IRClassTable();
+		attributes = new ArrayList <String>();
 		ProcessGraph(program.classes, out);
 
 		AST.class_ theClass = idxCont.get("Main");
@@ -50,7 +52,9 @@ public class Codegen{
 				AST.expression expr = new AST.expression();
 				AST.attr temp = (AST.attr)ftr;
 				expr = temp.value;
+
 				ProcessStr(expr);
+				attributes.add(temp.name);
 
 			}
 			else if(ftr.getClass() == AST.method.class)
@@ -204,10 +208,15 @@ public class Codegen{
 	}
 
 	private void ProcessStr(AST.object x) {
+		int index = attributes.indexOf(x.name);
+		if(index!=-1){
+			out.println("%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+			var_counter++;
+		}
 		if(x.type.equals("Int"))
-			out.println("%" + var_counter + " = load i32, i32* " + x.name + ", align 4");
+			out.println("%" + var_counter + " = load i32, i32* %" + (var_counter-1) + ", align 4");
 		else if(x.type.equals("Bool"))
-			out.println("%" + var_counter + " = load i8, i8* " + x.name + ", align 4");
+			out.println("%" + var_counter + " = load i8, i8* %" + (var_counter-1) + ", align 4");
 		var_counter++;
 	}
 	
@@ -231,15 +240,28 @@ public class Codegen{
 	
 	private void ProcessStr(AST.assign x) {
 		ProcessStr(x.e1);
-		int i = var_counter - 1;
-		if(x.type.equals("Int"))
-			out.println("store i32 %" + i + ", i32* " + x.name + ", align 4");
+		int index = attributes.indexOf(x.name);
+		int cur = 0;
+		int i = var_counter - 2;
+		if(x.type.equals("Int")){
+			if(index!=-1){
+				cur = var_counter;
+				out.println("%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+				var_counter++;
+			}
+			out.println("store i32 %" + (var_counter-2) + ", i32* %" + (var_counter-1) + ", align 4");
+		}
 		else if(x.type.equals("Bool")){
 			if(x.e1.getClass() != AST.object.class && x.e1.getClass() != AST.bool_const.class ){
 				out.println("%" + var_counter + " = zext i1 %" + (var_counter-1) + " to i8");
 				var_counter++;
 			}
-			out.println("store i8 %" + (var_counter-1) + ", i8* " + x.name + ", align 4");
+			if(index!=-1){
+				cur = var_counter;
+				out.println("%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+				var_counter++;
+			}	
+			out.println("store i8 %" + (var_counter-2) + ", i8* %" + cur + ", align 4");
 		}
 	}
 	
