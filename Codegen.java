@@ -20,6 +20,8 @@ public class Codegen{
 	HashMap <Integer, String> idxName;
 	HashMap <String, AST.class_> idxCont;
 	int var_counter = 0;
+	int label_ct = 0;
+	int ret_val = -1;
 	int strCount = 0;
 	PrintWriter out;
 	//out.println(";sgdfgsdf");
@@ -56,7 +58,19 @@ public class Codegen{
 				AST.expression expr = new AST.expression();
 				AST.method temp = (AST.method)ftr;
 				expr = temp.body;
+				ret_val = -1;
+				var_counter = 0;
+				label_ct = 0;
+				out.println("\nentry:");
 				ProcessStr(expr);
+				ret_val = var_counter - 1;
+				if(!temp.typeid.equals("Object"))
+					out.println("ret %" + ret_val);
+				else
+					out.println("ret void");
+				out.println("\n");
+
+
 
 			}
 
@@ -89,7 +103,7 @@ public class Codegen{
 						ProcessStr(expr);
 
 					}
-	        		}
+	        	}
 			}
 		}
 
@@ -122,6 +136,12 @@ public class Codegen{
 		
 		else if(expr.getClass() == AST.object.class)
 			ProcessStr((AST.object)expr);
+		else if(expr.getClass() == AST.block.class)
+			ProcessStr((AST.block)expr);
+		else if(expr.getClass() == AST.cond.class)
+			ProcessStr((AST.cond)expr);
+		else if(expr.getClass() == AST.loop.class)
+			ProcessStr((AST.loop)expr);
 		
 		else if(expr.getClass() == AST.plus.class)
 			ProcessStr((AST.plus)expr);
@@ -162,7 +182,7 @@ public class Codegen{
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
 		out.println("%" + var_counter + " = sub i32 %" + i + ", %" + j);
-		 var_counter++;
+		var_counter++;
 	}
 
 	private void ProcessStr(AST.mul x){
@@ -171,7 +191,7 @@ public class Codegen{
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
 		out.println("%" + var_counter + " = mul nsw i32 %" + i + ", %" + j);
-		 var_counter++;
+		var_counter++;
 	}
 
 	private void ProcessStr(AST.divide x){
@@ -180,22 +200,25 @@ public class Codegen{
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
 		out.println("%" + var_counter + " = sdiv i32 %" + i + ", %" + j);
-		 var_counter++;
+		var_counter++;
 	}
 
 	private void ProcessStr(AST.object x) {
-		out.println("%" + var_counter + " = load i32, i32* " + x.name + ", align 4");
-		 var_counter++;
+		if(x.type.equals("Int"))
+			out.println("%" + var_counter + " = load i32, i32* " + x.name + ", align 4");
+		else if(x.type.equals("Bool"))
+			out.println("%" + var_counter + " = load i8, i8* " + x.name + ", align 4");
+		var_counter++;
 	}
 	
 	private void ProcessStr(AST.string_const x) {
 		out.println(var_counter + " = i32 " + x.value );
-		 var_counter++;
+		var_counter++;
 	}
 	
 	private void ProcessStr(AST.int_const x) {
 		out.println("%" + var_counter + " = mul nsw i32 1, " + x.value );
-		 var_counter++;
+		var_counter++;
 	}
 
 	private void ProcessStr(AST.bool_const x) {
@@ -203,14 +226,21 @@ public class Codegen{
 		out.println("%" + var_counter + " = icmp eq i8 1, " + temp);
 		var_counter++;
 		out.println("%" + var_counter + " = zext i1 %" + (var_counter-1) + " to i8");
-		 var_counter++;
+		var_counter++;
 	}
 	
 	private void ProcessStr(AST.assign x) {
 		ProcessStr(x.e1);
 		int i = var_counter - 1;
-		out.println("store i32 %" + i + ", i32* " + x.name + ", align 4");
-		
+		if(x.type.equals("Int"))
+			out.println("store i32 %" + i + ", i32* " + x.name + ", align 4");
+		else if(x.type.equals("Bool")){
+			if(x.e1.getClass() != AST.object.class && x.e1.getClass() != AST.bool_const.class ){
+				out.println("%" + var_counter + " = zext i1 %" + (var_counter-1) + " to i8");
+				var_counter++;
+			}
+			out.println("store i8 %" + (var_counter-1) + ", i8* " + x.name + ", align 4");
+		}
 	}
 	
 	private void ProcessStr(AST.lt x) {
@@ -219,7 +249,7 @@ public class Codegen{
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
 		out.println("%" + var_counter + " = icmp slt i32 %" + i + ", %" + j);
-		 var_counter++;
+		var_counter++;
 	}
 	private void ProcessStr(AST.leq x) {
 		ProcessStr(x.e1);
@@ -227,7 +257,7 @@ public class Codegen{
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
 		out.println("%" + var_counter + " = icmp sle i32 %" + i + ", %" + j);
-		 var_counter++;
+		var_counter++;
 	}
 
 	private void ProcessStr(AST.eq x) {
@@ -236,7 +266,7 @@ public class Codegen{
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
 		out.println("%" + var_counter + " = icmp eq i32 %" + i + ", %" + j);
-		 var_counter++;
+		var_counter++;
 	}
 
 	private void ProcessStr(AST.comp x) {	
@@ -246,251 +276,54 @@ public class Codegen{
 		var_counter++;
 		out.println("%" + var_counter + " = xor i1 %" + (var_counter-1) + ", 1");
 		var_counter++;
-		out.println("%" + var_counter + " = zext i1 %" + (var_counter-1) + " to i8");
-		 var_counter++;
 	}
 
 	private void ProcessStr(AST.neg x) {		
 		ProcessStr(x.e1);
 		int i = var_counter - 1;
 		out.println("%" + var_counter + " = sub i32 0, %" + i);
-		 var_counter++;		
+		var_counter++;		
 	}
 
-	//private void ProcessStr(AST.expression expr_str, PrintWriter out)
-	//{
-		
-		
-		// assign
-		/*if(expr_str.getClass() == AST.assign.class)
-		{
-			AST.assign str = (AST.assign)expr_str;
-			AST.expression exp = str.e1;
-			ProcessStr(exp,out);
-		}
+	private void ProcessStr(AST.block x){
+		for(AST.expression e : x.l1)
+			ProcessStr(e);
+	}
+
+	private void ProcessStr(AST.cond x){
+		int l1, l2, l3;
+		l1 = ++label_ct;
+		l2 = ++label_ct;
+		l3 = ++label_ct;
+		//out.println("COND BEGIN LABEL: " + label_ct);
+		ProcessStr(x.predicate);
+		out.println("br i1 %" + (var_counter-1) + ", label %Label" +  l1 + ", label %Label" +  l2);
+		out.println("\nLabel" + l1 + ":");
+		ProcessStr(x.ifbody);
+		out.println("br label %Label" + l3);
+		out.println("\nLabel" + l2 + ":");
+		ProcessStr(x.elsebody);
+		out.println("br label %Label" + l3);
+		out.println("\nLabel" + l3 + ":");
+	}
+
+	private void ProcessStr(AST.loop x){
+		int l1, l2, l3;
+		l1 = ++label_ct;
+		l2 = ++label_ct;
+		l3 = ++label_ct;
+		//out.println("COND BEGIN LABEL: " + label_ct);
+		out.println("br label %Label" + l1);
+		out.println("\nLabel" + l1 + ":");
+		ProcessStr(x.predicate);
+		out.println("br i1 %" + (var_counter-1) + ", label %Label" +  l2 + ", label %Label" +  l3);
+		out.println("\nLabel" + l2 + ":");
+		ProcessStr(x.body);
+		out.println("br label %Label" + l1);
+		out.println("\nLabel" + l3 + ":");
+	}
 
 
-		// static dispatch
-		else if(expr_str.getClass() == AST.static_dispatch.class)
-		{
-			AST.static_dispatch str = (AST.static_dispatch)expr_str;
-			List<AST.expression> expression_listsd = new ArrayList<AST.expression>();
-            expression_listsd = str.actuals;
-
-            for(int i = 0; i < expression_listsd.size(); i++)
-			{
-				expr_str = expression_listsd.get(i);
-
-				if(expr_str.getClass() == AST.string_const.class)
-				{
-					printStringConst(expr_str,out);
-					return;
-				}
-				else
-					ProcessStr(expr_str,out);
-			}
-		}
-
-
-		// dispatch
-		else if(expr_str.getClass() == AST.dispatch.class)
-		{
-			AST.dispatch str = (AST.dispatch)expr_str;   
-
-			List<AST.expression> expression_listd = new ArrayList<AST.expression>();
-			expression_listd = str.actuals;
-
-			for(int l = 0; l < expression_listd.size(); l++)
-			{
-				expr_str = expression_listd.get(l);
-
-				if(expr_str.getClass() == AST.string_const.class)
-				{
-					printStringConst(expr_str,out);
-					return;
-				}
-				else
-					ProcessStr(expr_str,out);
-			}               
-		}
-
-
-		// if-then-else
-		else if(expr_str.getClass() == AST.cond.class)
-		{
-			AST.cond str = (AST.cond)expr_str;
-			AST.expression e1 = str.predicate;
-			AST.expression e2 = str.ifbody;
-			AST.expression e3 = str.elsebody;
-
-			if(e1.getClass() == AST.string_const.class)
-			{
-				printStringConst(e1, out);
-				return;
-			}
-			else
-				ProcessStr(e1,out);
-
-			if(e2.getClass() == AST.string_const.class)
-			{
-				printStringConst(e2, out);
-				return;
-			}
-			else
-				ProcessStr(e2,out);
-
-			if(e3.getClass() == AST.string_const.class)
-			{
-				printStringConst(e3, out);
-				return;
-			}
-			else
-				ProcessStr(e3,out);
-
-		}
-
-
-		// let
-		else if(expr_str.getClass() == AST.let.class)
-		{
-			AST.let str = (AST.let)expr_str;
-			AST.expression e1 = str.value;		
-
-			if(e1.getClass() == AST.string_const.class)
-			{
-				printStringConst(str.value,out);
-				return;
-			}
-			else
-				ProcessStr(e1,out);
-
-			AST.expression e2 = str.body;
-			if(e2.getClass() == AST.string_const.class)
-			{
-				printStringConst(e2,out);
-				return;
-			}
-			else
-				ProcessStr(e2,out);
-		}
-
-
-		// block
-		else if(expr_str.getClass() == AST.block.class)
-		{
-			AST.block str = (AST.block)expr_str;
-			List<AST.expression> listExp = new ArrayList<AST.expression>();
-			listExp = str.l1;
-			for(int i = 0; i < listExp.size(); ++i)
-	        {
-	        	AST.expression e2 = new AST.expression();
-	        	e2 = listExp.get(i);
-	        	if(e2.getClass() == AST.string_const.class)
-	        	{
-	        		AST.string_const str2 = (AST.string_const)e2;
-	        		printStringConst(str2,out);
-	        		return;
-	        	}
-	        	else
-					ProcessStr(e2,out);
-	        	
-	        }
-
-		}
-
-
-		// while loop
-		else if(expr_str.getClass() == AST.loop.class)
-		{
-			AST.loop str = (AST.loop)expr_str;
-			AST.expression e1 = str.predicate;
-			AST.expression e2 = str.body;
-			if(e1.getClass() == AST.string_const.class)
-        	{
-        		AST.string_const str2 = (AST.string_const)e1;
-        		printStringConst(str2,out);
-        		return;
-        	}
-        	else
-				ProcessStr(e1,out);
-			if(e2.getClass() == AST.string_const.class)
-        	{
-        		AST.string_const str3 = (AST.string_const)e2;
-        		printStringConst(str3,out);
-        		return;
-        	}
-        	else
-				ProcessStr(e2,out);
-		}
-
-		
-		// typcase
-		else if(expr_str.getClass() == AST.typcase.class)
-		{
-			AST.typcase str = (AST.typcase)expr_str;
-			AST.expression e1 = str.predicate;
-
-			if(e1.getClass() == AST.string_const.class)
-			{
-				printStringConst(e1, out);
-				return;
-			}
-			else
-				ProcessStr(e1, out);
-		
-			List<AST.branch> branchList = new ArrayList<AST.branch>();
-			branchList = str.branches;
-
-
-			for(int i=0; i<branchList.size(); i++)
-			{
-				AST.branch branch1 = new AST.branch(branchList.get(i).name,branchList.get(i).type,branchList.get(i).value,branchList.get(i).lineNo);
-				branch1 = branchList.get(i);
-
-				if(branch1.value.getClass() == AST.string_const.class)
-				{
-					printStringConst(branch1.value,out);
-					return;
-				}
-				else
-					ProcessStr(branch1.value,out);
-			}
-		}
-
-
-		// comparision operator (less than jaisa)
-		else if(expr_str.getClass() == AST.eq.class)
-		{
-			AST.eq str = (AST.eq)expr_str;
-
-			if(str.e1.getClass() == AST.string_const.class)
-			{
-				printStringConst(str.e1, out);
-				return;
-			}
-			else
-				ProcessStr(str.e1, out);
-
-
-			if(str.e2.getClass() == AST.string_const.class)
-			{
-				printStringConst(str.e2, out);
-				return;
-			}
-			else
-				ProcessStr(str.e2, out);
-		}
-
-
-
-		// string const
-		else if(expr_str.getClass() == AST.string_const.class)
-		{
-			AST.string_const str = (AST.string_const)expr_str;
-			printStringConst(str,out);
-		}*/
-	//}
-	
 	
 	private void CodegenInit(PrintWriter out) {
 		out.println(Constants.DATA_LAYOUT);
@@ -647,28 +480,6 @@ public class Codegen{
 			}
 		
 		}
-
-		/* prints comdat any */
-		/*
-		q.clear(); q.offer(0);
-		HashMap <String, Boolean> mentioned = new HashMap<String, Boolean>();
-		while (!q.isEmpty()) {
-			int u = q.poll();
-			IRClassPlus irc = IRclassTable.getIRClassPlus(idxName.get(u));
-			for(Entry<String, String> entry : irc.IRname.entrySet()) {
-				if(mentioned.containsKey(entry.getValue()) == false) {
-					String mod_name = entry.getValue();
-					// change first character to dollar
-					out.print(mod_name + " = " + " comdat any ");
-				}
-			}
-			for(Integer v : classGraph.get(u)) {
-				q.offer(v);
-			}
-		
-		}
-		*/
-
 		/* prints virtual table */
 		q.clear(); q.offer(0);
 		while (!q.isEmpty()) {
