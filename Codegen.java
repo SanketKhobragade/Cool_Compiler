@@ -65,14 +65,46 @@ public class Codegen{
 				ret_val = -1;
 				var_counter = 0;
 				label_ct = 0;
+				String s = "";
+				if(temp.typeid.equals("Object"))
+					s = "void";
+				else if(temp.typeid.equals("Int"))
+					s = "i32";
+				else if(temp.typeid.equals("Bool"))
+					s = "i8";
+				out.print("define " + s + " @" + temp.name + "(");
+				for(int j = 0; j < temp.formals.size(); j++){
+					AST.formal temp2 = temp.formals.get(j);
+					if(temp2.typeid.equals("Object"))
+						s = "void";
+					else if(temp2.typeid.equals("Int"))
+						s = "i32";
+					else if(temp2.typeid.equals("Bool"))
+						s = "i8";
+					out.print(s + " %" + temp2.name);
+					if(j!=temp.formals.size()-1){
+						out.print(", ");
+					}
+					//else
+						
+				}
+				out.print(") {");
 				out.println("\nentry:");
+				out.println("\t%this.addr = alloca %class.A*, align 8");
+  				out.println("\tstore %class.A* %this, %class.A** %this.addr, align 8");
+ 				out.println("\t%this1 = load %class.A*, %class.A** %this.addr, align 8");
+ 				for(AST.formal e : temp.formals){
+ 					int size = e.typeid.equals("Int") ? 32 : 8;
+ 					out.println("\t%" + e.name + ".addr = alloca i" + size + ", align " + (size/8));
+  					out.println("\tstore i" + size + " %" + e.name + ", i32* %" + e.name + ".addr, align " + (size/8));
+ 				}
 				ProcessStr(expr);
 				ret_val = var_counter - 1;
 				if(!temp.typeid.equals("Object"))
-					out.println("ret %" + ret_val);
+					out.println("\tret %" + ret_val);
 				else
-					out.println("ret void");
-				out.println("\n");
+					out.println("\tret void");
+				out.println("}\n");
 
 
 
@@ -176,7 +208,7 @@ public class Codegen{
 		int i = var_counter - 1;
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
-		out.println("%" + var_counter + " = add i32 %" + i + ", %" + j);
+		out.println("\t"+"%" + var_counter + " = add i32 %" + i + ", %" + j);
 		var_counter++;
 	}
 
@@ -185,7 +217,7 @@ public class Codegen{
 		int i = var_counter - 1;
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
-		out.println("%" + var_counter + " = sub i32 %" + i + ", %" + j);
+		out.println("\t"+"%" + var_counter + " = sub i32 %" + i + ", %" + j);
 		var_counter++;
 	}
 
@@ -194,7 +226,7 @@ public class Codegen{
 		int i = var_counter - 1;
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
-		out.println("%" + var_counter + " = mul nsw i32 %" + i + ", %" + j);
+		out.println("\t"+"%" + var_counter + " = mul nsw i32 %" + i + ", %" + j);
 		var_counter++;
 	}
 
@@ -203,38 +235,44 @@ public class Codegen{
 		int i = var_counter - 1;
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
-		out.println("%" + var_counter + " = sdiv i32 %" + i + ", %" + j);
+		out.println("\t"+"%" + var_counter + " = sdiv i32 %" + i + ", %" + j);
 		var_counter++;
 	}
 
 	private void ProcessStr(AST.object x) {
 		int index = attributes.indexOf(x.name);
 		if(index!=-1){
-			out.println("%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+			out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
 			var_counter++;
+			if(x.type.equals("Int"))
+				out.println("\t"+"%" + var_counter + " = load i32, i32* %" + (var_counter-1) + ", align 4");
+			else if(x.type.equals("Bool"))
+				out.println("\t"+"%" + var_counter + " = load i8, i8* %" + (var_counter-1) + ", align 4");
 		}
-		if(x.type.equals("Int"))
-			out.println("%" + var_counter + " = load i32, i32* %" + (var_counter-1) + ", align 4");
-		else if(x.type.equals("Bool"))
-			out.println("%" + var_counter + " = load i8, i8* %" + (var_counter-1) + ", align 4");
+		else{
+			if(x.type.equals("Int"))
+				out.println("\t"+"%" + var_counter + " = load i32, i32* %" + x.name + ".addr" + ", align 4");
+			else if(x.type.equals("Bool"))
+				out.println("\t"+"%" + var_counter + " = load i8, i8* %" + x.name + ".addr" + ", align 4");
+		}
 		var_counter++;
 	}
 	
 	private void ProcessStr(AST.string_const x) {
-		out.println(var_counter + " = i32 " + x.value );
+		out.println("\t"+var_counter + " = i32 " + x.value );
 		var_counter++;
 	}
 	
 	private void ProcessStr(AST.int_const x) {
-		out.println("%" + var_counter + " = mul nsw i32 1, " + x.value );
+		out.println("\t"+"%" + var_counter + " = mul nsw i32 1, " + x.value );
 		var_counter++;
 	}
 
 	private void ProcessStr(AST.bool_const x) {
 		int temp = x.value? 1 : 0;
-		out.println("%" + var_counter + " = icmp eq i8 1, " + temp);
+		out.println("\t"+"%" + var_counter + " = icmp eq i8 1, " + temp);
 		var_counter++;
-		out.println("%" + var_counter + " = zext i1 %" + (var_counter-1) + " to i8");
+		out.println("\t"+"%" + var_counter + " = zext i1 %" + (var_counter-1) + " to i8");
 		var_counter++;
 	}
 	
@@ -246,22 +284,22 @@ public class Codegen{
 		if(x.type.equals("Int")){
 			if(index!=-1){
 				cur = var_counter;
-				out.println("%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
 				var_counter++;
 			}
-			out.println("store i32 %" + (var_counter-2) + ", i32* %" + (var_counter-1) + ", align 4");
+			out.println("\t"+"store i32 %" + (var_counter-2) + ", i32* %" + (var_counter-1) + ", align 4");
 		}
 		else if(x.type.equals("Bool")){
 			if(x.e1.getClass() != AST.object.class && x.e1.getClass() != AST.bool_const.class ){
-				out.println("%" + var_counter + " = zext i1 %" + (var_counter-1) + " to i8");
+				out.println("\t"+"%" + var_counter + " = zext i1 %" + (var_counter-1) + " to i8");
 				var_counter++;
 			}
 			if(index!=-1){
 				cur = var_counter;
-				out.println("%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
 				var_counter++;
 			}	
-			out.println("store i8 %" + (var_counter-2) + ", i8* %" + cur + ", align 4");
+			out.println("\t"+"store i8 %" + (var_counter-2) + ", i8* %" + cur + ", align 4");
 		}
 	}
 	
@@ -270,7 +308,7 @@ public class Codegen{
 		int i = var_counter - 1;
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
-		out.println("%" + var_counter + " = icmp slt i32 %" + i + ", %" + j);
+		out.println("\t"+"%" + var_counter + " = icmp slt i32 %" + i + ", %" + j);
 		var_counter++;
 	}
 	private void ProcessStr(AST.leq x) {
@@ -278,7 +316,7 @@ public class Codegen{
 		int i = var_counter - 1;
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
-		out.println("%" + var_counter + " = icmp sle i32 %" + i + ", %" + j);
+		out.println("\t"+"%" + var_counter + " = icmp sle i32 %" + i + ", %" + j);
 		var_counter++;
 	}
 
@@ -287,23 +325,23 @@ public class Codegen{
 		int i = var_counter - 1;
 		ProcessStr(x.e2);
 		int j = var_counter - 1;
-		out.println("%" + var_counter + " = icmp eq i32 %" + i + ", %" + j);
+		out.println("\t"+"%" + var_counter + " = icmp eq i32 %" + i + ", %" + j);
 		var_counter++;
 	}
 
 	private void ProcessStr(AST.comp x) {	
 		ProcessStr(x.e1);
 		int i = var_counter - 1;
-		out.println("%" + var_counter + " = trunc i8 %" + i + " to i1");
+		out.println("\t"+"%" + var_counter + " = trunc i8 %" + i + " to i1");
 		var_counter++;
-		out.println("%" + var_counter + " = xor i1 %" + (var_counter-1) + ", 1");
+		out.println("\t"+"%" + var_counter + " = xor i1 %" + (var_counter-1) + ", 1");
 		var_counter++;
 	}
 
 	private void ProcessStr(AST.neg x) {		
 		ProcessStr(x.e1);
 		int i = var_counter - 1;
-		out.println("%" + var_counter + " = sub i32 0, %" + i);
+		out.println("\t"+"%" + var_counter + " = sub i32 0, %" + i);
 		var_counter++;		
 	}
 
@@ -317,15 +355,15 @@ public class Codegen{
 		l1 = ++label_ct;
 		l2 = ++label_ct;
 		l3 = ++label_ct;
-		//out.println("COND BEGIN LABEL: " + label_ct);
+		//out.println("\t"+"COND BEGIN LABEL: " + label_ct);
 		ProcessStr(x.predicate);
-		out.println("br i1 %" + (var_counter-1) + ", label %Label" +  l1 + ", label %Label" +  l2);
+		out.println("\t"+"br i1 %" + (var_counter-1) + ", label %Label" +  l1 + ", label %Label" +  l2);
 		out.println("\nLabel" + l1 + ":");
 		ProcessStr(x.ifbody);
-		out.println("br label %Label" + l3);
+		out.println("\t"+"br label %Label" + l3);
 		out.println("\nLabel" + l2 + ":");
 		ProcessStr(x.elsebody);
-		out.println("br label %Label" + l3);
+		out.println("\t"+"br label %Label" + l3);
 		out.println("\nLabel" + l3 + ":");
 	}
 
@@ -334,14 +372,14 @@ public class Codegen{
 		l1 = ++label_ct;
 		l2 = ++label_ct;
 		l3 = ++label_ct;
-		//out.println("COND BEGIN LABEL: " + label_ct);
-		out.println("br label %Label" + l1);
+		//out.println("\t"+"COND BEGIN LABEL: " + label_ct);
+		out.println("\t"+"br label %Label" + l1);
 		out.println("\nLabel" + l1 + ":");
 		ProcessStr(x.predicate);
-		out.println("br i1 %" + (var_counter-1) + ", label %Label" +  l2 + ", label %Label" +  l3);
+		out.println("\t"+"br i1 %" + (var_counter-1) + ", label %Label" +  l2 + ", label %Label" +  l3);
 		out.println("\nLabel" + l2 + ":");
 		ProcessStr(x.body);
-		out.println("br label %Label" + l1);
+		out.println("\t"+"br label %Label" + l1);
 		out.println("\nLabel" + l3 + ":");
 	}
 
