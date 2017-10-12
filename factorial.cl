@@ -1,6 +1,6 @@
 
 class Main inherits IO {
-	a : Int;
+	a : Int <- 4;
 	b : Int;
 	c : Int;
 	d : Int;
@@ -52,7 +52,7 @@ class Main inherits IO {
 			a <- 0;
 		}
 	};
-	main(): Object {
+	main(ab : Int, cd : Bool): Int {
 	   	5
 	};
 };

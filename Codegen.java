@@ -15,34 +15,29 @@ import java.util.Map.Entry;
 
 public class Codegen{
 	
-	IRClassTable IRclassTable;
-	ArrayList < ArrayList <Integer> > classGraph;
-	HashMap <Integer, String> idxName;
-	HashMap <String, AST.class_> idxCont;
 	ArrayList <String> attributes;
+	ArrayList <String> sizelist;
+	ArrayList <AST.attr> atrExp;
 	int var_counter = 0;
 	int label_ct = 0;
 	int ret_val = -1;
-	int strCount = 0;
 	PrintWriter out;
-	//out.println(";sgdfgsdf");
 	public Codegen(AST.program program, PrintWriter out){
 		//Write Code generator code here
 		out.println("; I am a comment in LLVM-IR. Feel free to remove me.");
-	       
+	    out.println("target datalayout = \"e-m:e-i64:64-f80:128-n8:16:32:64-S128\"\ntarget triple = \"x86_64-unknown-linux-gnu\"");
 		// go through all classes. For each class make object structures, then include virtual table for a class.
-		CodegenInit(out);
+		//CodegenInit(out);
 		this.out = out;
-		
-		IRclassTable = new IRClassTable();
 		attributes = new ArrayList <String>();
-		ProcessGraph(program.classes, out);
+		sizelist = new ArrayList <String>();
+		atrExp = new ArrayList <AST.attr>();
 
-		AST.class_ theClass = idxCont.get("Main");
+		AST.class_ theClass = program.classes.get(0);
 
 		List<AST.feature> theFeatures = new ArrayList<AST.feature>();
 		theFeatures = theClass.features;
-		
+		int tempct = 0;
 		for(int i = 0; i < theFeatures.size(); ++i)
 		{
 			AST.feature ftr = new AST.feature();
@@ -51,13 +46,26 @@ public class Codegen{
 			{
 				AST.expression expr = new AST.expression();
 				AST.attr temp = (AST.attr)ftr;
-				expr = temp.value;
-
-				ProcessStr(expr);
+				//expr = temp.value;
+				atrExp.add(temp);
 				attributes.add(temp.name);
+				sizelist.add(temp.typeid);
 
 			}
-			else if(ftr.getClass() == AST.method.class)
+			else if(tempct==0){
+				out.print("%class.A = type {");
+				for(int j = 0; j < sizelist.size(); j++){
+					if(sizelist.get(j).equals("Int"))
+						out.print("i32");
+					else
+						out.print("i8");
+					if(j!=sizelist.size()-1)
+						out.print(", ");
+				} 
+				out.println("}\n");
+				tempct++;
+			}
+			if(ftr.getClass() == AST.method.class)
 			{
 				AST.expression expr = new AST.expression();
 				AST.method temp = (AST.method)ftr;
@@ -66,6 +74,7 @@ public class Codegen{
 				var_counter = 0;
 				label_ct = 0;
 				String s = "";
+				Boolean flag = false;
 				if(temp.typeid.equals("Object"))
 					s = "void";
 				else if(temp.typeid.equals("Int"))
@@ -73,31 +82,45 @@ public class Codegen{
 				else if(temp.typeid.equals("Bool"))
 					s = "i8";
 				out.print("define " + s + " @" + temp.name + "(");
+				if(!temp.name.equals("main")){
+					out.print("%class.A* %this");
+					flag = true;
+				}
 				for(int j = 0; j < temp.formals.size(); j++){
 					AST.formal temp2 = temp.formals.get(j);
+					if(flag)
+						out.print(", ");
+					else
+						flag = true;
 					if(temp2.typeid.equals("Object"))
 						s = "void";
 					else if(temp2.typeid.equals("Int"))
 						s = "i32";
 					else if(temp2.typeid.equals("Bool"))
 						s = "i8";
-					out.print(s + " %" + temp2.name);
-					if(j!=temp.formals.size()-1){
-						out.print(", ");
-					}
-					//else
-						
+					out.print(s + " %" + temp2.name);						
 				}
 				out.print(") {");
 				out.println("\nentry:");
+				if(temp.name.equals("main")){
+					out.println("\t%this = alloca %class.A, align 4");
+				}
 				out.println("\t%this.addr = alloca %class.A*, align 8");
   				out.println("\tstore %class.A* %this, %class.A** %this.addr, align 8");
  				out.println("\t%this1 = load %class.A*, %class.A** %this.addr, align 8");
  				for(AST.formal e : temp.formals){
  					int size = e.typeid.equals("Int") ? 32 : 8;
  					out.println("\t%" + e.name + ".addr = alloca i" + size + ", align " + (size/8));
-  					out.println("\tstore i" + size + " %" + e.name + ", i32* %" + e.name + ".addr, align " + (size/8));
+  					out.println("\tstore i" + size + " %" + e.name + ", i"+size+"* %" + e.name + ".addr, align " + (size/8));
  				}
+ 				if(temp.name.equals("main")){
+ 					for(AST.attr exp : atrExp){
+ 						AST.assign as = new AST.assign(exp.name, exp.value, 0);
+ 						as.type = exp.typeid;
+ 						ProcessStr(as);
+ 					}
+ 				}
+
 				ProcessStr(expr);
 				ret_val = var_counter - 1;
 				if(!temp.typeid.equals("Object"))
@@ -112,52 +135,7 @@ public class Codegen{
 
 		}
 
-		for(AST.class_ e : program.classes) 
-		{
-			if(!(e.name.equals("Main")))
-			{
-				//List<AST.feature> theFeatures = new ArrayList<AST.feature>();
-				theFeatures = theClass.features;
-
-				for(int i = 0; i < theFeatures.size(); ++i)
-				{
-					AST.feature ftr = new AST.feature();
-					ftr = theFeatures.get(i);
-					if(ftr.getClass() == AST.attr.class)
-					{
-						AST.expression expr = new AST.expression();
-						AST.attr temp = (AST.attr)ftr;
-						expr = temp.value;
-						ProcessStr(expr);
-
-					}
-					else if(ftr.getClass() == AST.method.class)
-					{
-						AST.expression expr = new AST.expression();
-						AST.method temp = (AST.method)ftr;
-						expr = temp.body;
-						ProcessStr(expr);
-
-					}
-	        	}
-			}
-		}
-
 	}
-
-
-	private void printStringConst(AST.expression expr_str, PrintWriter out)
-	{
-		AST.string_const str_obj = (AST.string_const)expr_str;	
-  		if(strCount==0){
-  			out.println("@.str = private unnamed_addr constant ["+ (str_obj.value.length()+1) + " x i8] c\""+str_obj.value+"\\00\", align 1");
-  		}
-  		else{
-  			out.println("@.str."+ strCount+ " = private unnamed_addr constant ["+ (str_obj.value.length()+1) + " x i8] c\""+str_obj.value+"\\00\", align 1");
-  		}
-  		strCount++;
-	}
-
 
 	private void ProcessStr(AST.expression expr) {
 		
@@ -178,6 +156,8 @@ public class Codegen{
 			ProcessStr((AST.cond)expr);
 		else if(expr.getClass() == AST.loop.class)
 			ProcessStr((AST.loop)expr);
+		else if(expr.getClass() == AST.no_expr.class)
+			ProcessStr((AST.no_expr)expr);
 		
 		else if(expr.getClass() == AST.plus.class)
 			ProcessStr((AST.plus)expr);
@@ -242,12 +222,17 @@ public class Codegen{
 	private void ProcessStr(AST.object x) {
 		int index = attributes.indexOf(x.name);
 		if(index!=-1){
-			out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
-			var_counter++;
-			if(x.type.equals("Int"))
+			
+			if(x.type.equals("Int")){
+				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+				var_counter++;
 				out.println("\t"+"%" + var_counter + " = load i32, i32* %" + (var_counter-1) + ", align 4");
-			else if(x.type.equals("Bool"))
+			}
+			else if(x.type.equals("Bool")){
+				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+				var_counter++;
 				out.println("\t"+"%" + var_counter + " = load i8, i8* %" + (var_counter-1) + ", align 4");
+			}
 		}
 		else{
 			if(x.type.equals("Int"))
@@ -273,6 +258,10 @@ public class Codegen{
 		out.println("\t"+"%" + var_counter + " = icmp eq i8 1, " + temp);
 		var_counter++;
 		out.println("\t"+"%" + var_counter + " = zext i1 %" + (var_counter-1) + " to i8");
+		var_counter++;
+	}
+	private void ProcessStr(AST.no_expr x) {
+		out.println("\t"+"%" + var_counter + " = mul nsw i32 0, 0");
 		var_counter++;
 	}
 	
@@ -381,186 +370,6 @@ public class Codegen{
 		ProcessStr(x.body);
 		out.println("\t"+"br label %Label" + l1);
 		out.println("\nLabel" + l3 + ":");
-	}
-
-
-	
-	private void CodegenInit(PrintWriter out) {
-		out.println(Constants.DATA_LAYOUT);
-		out.println(Constants.TARGET_TRIPLE);
-		out.println(Constants.ERRORS);
-		out.println(Constants.CMETHODS);
-		out.println(Constants.CMETHOD_HELPERS);
-	}
-	
-	
-	// given a method, get its type signature
-	private String getIRType(String typeid) {
-		if(Constants.FC_TYPES.containsKey(typeid)) {
-			return Constants.FC_TYPES.get(typeid);
-		}
-		else return "%class." + typeid + "*";
-	}
-	
-	private void EmitClassDecl(IRClassPlus irclass, PrintWriter out) {
-		out.print("%class." + irclass.name + ".Base = type {");
-		for(int i = 0; i < irclass.attrList.size(); ++i) {
-			AST.attr at = irclass.attrList.get(i);
-			if(i != 0)
-				out.print(", ");
-			out.print(getIRType(at.typeid));
-		}
-		out.print(" }\n");
-		out.println("%class." + irclass.name + " = type { i32, i8*, %class." + irclass.name + ".Base }\n");
-	}
-	
-	private void EmitClassVT(IRClassPlus irclass, PrintWriter out) {
-		out.print("@_ZTV" + irclass.name.length() + irclass.name + " = constant " +
-				"[" + irclass.methodList.size() + " x i8*] [");
-		for(int i = 0; i < irclass.methodList.size(); ++i) {
-			if(i != 0)
-				out.print(", ");
-			AST.method me = irclass.methodList.get(i);
-			out.print("i8* bitcast (");
-			out.print(getIRType(me.typeid));
-			out.print(" ( ");
-			for(int j = 0; j < me.formals.size(); ++j) {
-				AST.formal fr = me.formals.get(j);
-				if(j != 0)
-					out.print(", ");
-				out.print(getIRType(fr.typeid));
-			}
-			out.print(" )* ");
-			
-			// now name of method
-			out.print(irclass.IRname.get(me.name));
-			out.print(" to i8*)");
-		}
-		out.print("] \n");
-	}
-	
-
-	/* A constructor for all base types is required */
-	
-	private void EmitMethods(IRClassPlus irclass, PrintWriter out) {
-		if(irclass.name.equals("Int") || irclass.name.equals("Bool")) return;
-		else if(irclass.name.equals("String")) {
-			out.println(Constants.STRING_CONCAT);
-			out.println(Constants.STRING_COPY);
-			out.println(Constants.STRING_LENGTH);
-			out.println(Constants.STRING_SUBSTR);
-		} else if(irclass.name.equals("Object")) {
-			out.println(Constants.OBJECT_ABORT);
-			// constructor for base type
-			out.println(Constants.OBJECT_BASE);
-			out.println(Constants.OBJECT_TYPENAME);
-		} else if(irclass.name.equals("IO")) {
-			EmitBaseConstructor(irclass, out);
-		} else {
-			EmitBaseConstructor(irclass, out);
-		}
-	}
-	
-	private String baseClassName(String className) {
-		return "class." + className + ".Base";
-	}
-	
-	private void EmitBaseConstructor(IRClassPlus irclass, PrintWriter out) {
-		out.print("define void @_Z" + irclass.name.length() + irclass.name + "Base" + "C");
-		out.print(" ( %" + irclass.name + ".Base*" + "%this" + " ) { \n");
-		out.println("entry: ");
-		
-		
-		int ptr = 0;
-		for(int i = 0; i < irclass.attrList.size(); ++i) {
-			AST.attr at = irclass.attrList.get(i);
-			out.println("%" + ptr + " = getelementptr inbouds %" + baseClassName(at.typeid) + ", " + baseClassName(at.typeid) + "* %this, i32 0, i32 " + i);
-			out.println("call void " + "@_Z" + at.typeid.length() + at.typeid + "Base"+ "C" + "( %" + baseClassName(at.typeid) + "*" + "%" + i);
-			out.println("return void");
-		}
-	}
-	
-	private void ProcessGraph(List <AST.class_> classes, PrintWriter out) {
-			
-	
-		Integer sz = 0;		// stores the number of classes
-		idxCont = new HashMap <String, AST.class_> ();
-		HashMap <String, Integer> classIdx = new HashMap <String, Integer> ();
-		idxName = new HashMap <Integer, String>();
-		classGraph = new ArrayList < ArrayList <Integer> >();
-
-		/* Laying the groundwork */
-		classIdx.put("Object", 0);
-		idxName.put(0, "Object");
-		classIdx.put("IO", 1);
-		idxName.put(0, "IO");
-		
-		classGraph.add(new ArrayList <Integer> (Arrays.asList(1)));
-		classGraph.add(new ArrayList <Integer>());	// for IO
-		idxName.put(0, "Object");
-		idxName.put(1, "IO");
-		
-		sz = sz + 2;	// IO and Object (2 classes) already present
-		
-		/* Checking for :
-		 * - bad redefinitions
-		 * - bad inheritance
-		 * Also : assigning an integer corresponding to each class.
-		 */
-		for(AST.class_ e : classes) {
-			idxName.put(sz, e.name);			// Reverse lookup. Integer -> className
-			classIdx.put(e.name, sz++);			// className -> Integer
-			idxCont.put(e.name, e);				// getting the class from name. Used later.
-			classGraph.add(new ArrayList <Integer> ());
-		}
-
-
-		
-		/* We are creating an undirected graph in this method.
-		 * Also: Checking for - undefined parent class error
-		 */
-		for(AST.class_ e : classes) {
-			int u = classIdx.get(e.parent);
-			int v = classIdx.get(e.name);
-			classGraph.get(u).add(v);			// adding an edge from parent -> child in the graph
-		}
-		
-		
-		/* Class Declarations here */
-		Queue<Integer> q = new LinkedList<Integer>();				
-		q.clear(); q.offer(0);
-		while (!q.isEmpty()) {
-			int u = q.poll();
-			if(u != 1 && u != 0) {
-				IRclassTable.insert(idxCont.get(idxName.get(u)));		// insert classes in BFS-order so that methods and attributes can be inherited.
-			}
-			EmitClassDecl(IRclassTable.getIRClassPlus(idxName.get(u)), out);
-			for(Integer v : classGraph.get(u)) {
-				q.offer(v);
-			}
-		
-		}
-		/* prints virtual table */
-		q.clear(); q.offer(0);
-		while (!q.isEmpty()) {
-			int u = q.poll();
-			EmitClassVT(IRclassTable.getIRClassPlus(idxName.get(u)), out);
-			for(Integer v : classGraph.get(u)) {
-				q.offer(v);
-			}
-		}
-		
-		/* prints definitions */
-		q.clear(); q.offer(0);
-		while (!q.isEmpty()) {
-			int u = q.poll();
-			EmitMethods(IRclassTable.getIRClassPlus(idxName.get(u)), out);
-			for(Integer v : classGraph.get(u)) {
-				q.offer(v);
-			}
-		
-		}
-		
 	}
 
 }
