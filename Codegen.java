@@ -67,8 +67,11 @@ public class Codegen{
 			}
 			if(ftr.getClass() == AST.method.class)
 			{
+				
 				AST.expression expr = new AST.expression();
 				AST.method temp = (AST.method)ftr;
+				if(!temp.name.equals("main"))
+					continue;
 				expr = temp.body;
 				ret_val = -1;
 				var_counter = 0;
@@ -124,7 +127,83 @@ public class Codegen{
 				ProcessStr(expr);
 				ret_val = var_counter - 1;
 				if(!temp.typeid.equals("Object"))
-					out.println("\tret %" + ret_val);
+					out.println("\tret i32 %" + ret_val);
+				else
+					out.println("\tret void");
+				out.println("}\n");
+
+
+
+			}
+
+		}
+		for(int i = 0; i < theFeatures.size(); ++i)
+		{
+			AST.feature ftr = new AST.feature();
+			ftr = theFeatures.get(i);
+			if(ftr.getClass() == AST.method.class)
+			{
+				
+				AST.expression expr = new AST.expression();
+				AST.method temp = (AST.method)ftr;
+				if(temp.name.equals("main"))
+					continue;
+				expr = temp.body;
+				ret_val = -1;
+				var_counter = 0;
+				label_ct = 0;
+				String s = "";
+				Boolean flag = false;
+				if(temp.typeid.equals("Object"))
+					s = "void";
+				else if(temp.typeid.equals("Int"))
+					s = "i32";
+				else if(temp.typeid.equals("Bool"))
+					s = "i8";
+				out.print("define " + s + " @" + temp.name + "(");
+				if(!temp.name.equals("main")){
+					out.print("%class.A* %this");
+					flag = true;
+				}
+				for(int j = 0; j < temp.formals.size(); j++){
+					AST.formal temp2 = temp.formals.get(j);
+					if(flag)
+						out.print(", ");
+					else
+						flag = true;
+					if(temp2.typeid.equals("Object"))
+						s = "void";
+					else if(temp2.typeid.equals("Int"))
+						s = "i32";
+					else if(temp2.typeid.equals("Bool"))
+						s = "i8";
+					out.print(s + " %" + temp2.name);						
+				}
+				out.print(") {");
+				out.println("\nentry:");
+				if(temp.name.equals("main")){
+					out.println("\t%this = alloca %class.A, align 4");
+				}
+				out.println("\t%this.addr = alloca %class.A*, align 8");
+  				out.println("\tstore %class.A* %this, %class.A** %this.addr, align 8");
+ 				out.println("\t%this1 = load %class.A*, %class.A** %this.addr, align 8");
+ 				for(AST.formal e : temp.formals){
+ 					int size = e.typeid.equals("Int") ? 32 : 8;
+ 					out.println("\t%" + e.name + ".addr = alloca i" + size + ", align " + (size/8));
+  					out.println("\tstore i" + size + " %" + e.name + ", i"+size+"* %" + e.name + ".addr, align " + (size/8));
+ 				}
+ 				if(temp.name.equals("main")){
+ 					for(AST.attr exp : atrExp){
+ 						AST.assign as = new AST.assign(exp.name, exp.value, 0);
+ 						as.type = exp.typeid;
+ 						ProcessStr(as);
+ 					}
+ 				}
+
+				ProcessStr(expr);
+				ret_val = var_counter - 1;
+				if(!temp.typeid.equals("Object"))
+					out.println("\tret i32 %" + ret_val);
 				else
 					out.println("\tret void");
 				out.println("}\n");
@@ -156,8 +235,8 @@ public class Codegen{
 			ProcessStr((AST.cond)expr);
 		else if(expr.getClass() == AST.loop.class)
 			ProcessStr((AST.loop)expr);
-		else if(expr.getClass() == AST.no_expr.class)
-			ProcessStr((AST.no_expr)expr);
+		//else if(expr.getClass() == AST.no_expr.class)
+		//		ProcessStr((AST.no_expr)expr);
 		
 		else if(expr.getClass() == AST.plus.class)
 			ProcessStr((AST.plus)expr);
@@ -177,8 +256,7 @@ public class Codegen{
 			ProcessStr((AST.eq)expr);
 		else if(expr.getClass() == AST.neg.class)
 			ProcessStr((AST.neg)expr);
-		else
-			out.println(expr.getClass());
+
 			
 				
 	}
@@ -260,13 +338,21 @@ public class Codegen{
 		out.println("\t"+"%" + var_counter + " = zext i1 %" + (var_counter-1) + " to i8");
 		var_counter++;
 	}
-	private void ProcessStr(AST.no_expr x) {
-		out.println("\t"+"%" + var_counter + " = mul nsw i32 0, 0");
+	private void ProcessStr(AST.no_expr x, int size) {
+		out.println("\t"+"%" + var_counter + " = mul nsw i"+size+" 0, 0");
 		var_counter++;
 	}
 	
 	private void ProcessStr(AST.assign x) {
-		ProcessStr(x.e1);
+		int size;
+		if(x.type.equals("Int"))
+			size = 32;
+		else
+			size = 1;
+		if(x.e1.getClass() == AST.no_expr.class)
+			ProcessStr((AST.no_expr)x.e1, size);
+		else
+			ProcessStr(x.e1);
 		int index = attributes.indexOf(x.name);
 		int cur = 0;
 		int i = var_counter - 2;
