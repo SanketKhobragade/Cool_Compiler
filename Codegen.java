@@ -18,6 +18,7 @@ public class Codegen{
 	ArrayList <String> attributes;
 	ArrayList <String> sizelist;
 	ArrayList <AST.attr> atrExp;
+	ArrayList <AST.method> methodList;
 	int var_counter = 0;
 	int label_ct = 0;
 	int ret_val = -1;
@@ -32,12 +33,14 @@ public class Codegen{
 		attributes = new ArrayList <String>();
 		sizelist = new ArrayList <String>();
 		atrExp = new ArrayList <AST.attr>();
+		methodList = new ArrayList <AST.method>();
 
 		AST.class_ theClass = program.classes.get(0);
 
 		List<AST.feature> theFeatures = new ArrayList<AST.feature>();
 		theFeatures = theClass.features;
 		int tempct = 0;
+		int main_index = -1;
 		for(int i = 0; i < theFeatures.size(); ++i)
 		{
 			AST.feature ftr = new AST.feature();
@@ -46,14 +49,13 @@ public class Codegen{
 			{
 				AST.expression expr = new AST.expression();
 				AST.attr temp = (AST.attr)ftr;
-				//expr = temp.value;
 				atrExp.add(temp);
 				attributes.add(temp.name);
 				sizelist.add(temp.typeid);
 
 			}
 			else if(tempct==0){
-				out.print("%class.A = type {");
+				out.print("%class.Main = type {");
 				for(int j = 0; j < sizelist.size(); j++){
 					if(sizelist.get(j).equals("Int"))
 						out.print("i32");
@@ -67,153 +69,83 @@ public class Codegen{
 			}
 			if(ftr.getClass() == AST.method.class)
 			{
-				
-				AST.expression expr = new AST.expression();
 				AST.method temp = (AST.method)ftr;
-				if(!temp.name.equals("main"))
-					continue;
-				expr = temp.body;
-				ret_val = -1;
-				var_counter = 0;
-				label_ct = 0;
-				String s = "";
-				Boolean flag = false;
-				if(temp.typeid.equals("Object"))
-					s = "void";
-				else if(temp.typeid.equals("Int"))
-					s = "i32";
-				else if(temp.typeid.equals("Bool"))
-					s = "i8";
-				out.print("define " + s + " @" + temp.name + "(");
-				if(!temp.name.equals("main")){
-					out.print("%class.A* %this");
-					flag = true;
-				}
-				for(int j = 0; j < temp.formals.size(); j++){
-					AST.formal temp2 = temp.formals.get(j);
-					if(flag)
-						out.print(", ");
-					else
-						flag = true;
-					if(temp2.typeid.equals("Object"))
-						s = "void";
-					else if(temp2.typeid.equals("Int"))
-						s = "i32";
-					else if(temp2.typeid.equals("Bool"))
-						s = "i8";
-					out.print(s + " %" + temp2.name);						
-				}
-				out.print(") {");
-				out.println("\nentry:");
-				if(temp.name.equals("main")){
-					out.println("\t%this = alloca %class.A, align 4");
-				}
-				out.println("\t%this.addr = alloca %class.A*, align 8");
-  				out.println("\tstore %class.A* %this, %class.A** %this.addr, align 8");
- 				out.println("\t%this1 = load %class.A*, %class.A** %this.addr, align 8");
- 				for(AST.formal e : temp.formals){
- 					int size = e.typeid.equals("Int") ? 32 : 8;
- 					out.println("\t%" + e.name + ".addr = alloca i" + size + ", align " + (size/8));
-  					out.println("\tstore i" + size + " %" + e.name + ", i"+size+"* %" + e.name + ".addr, align " + (size/8));
- 				}
- 				if(temp.name.equals("main")){
- 					for(AST.attr exp : atrExp){
- 						AST.assign as = new AST.assign(exp.name, exp.value, 0);
- 						as.type = exp.typeid;
- 						ProcessStr(as);
- 					}
- 				}
-
-				ProcessStr(expr);
-				ret_val = var_counter - 1;
-				if(!temp.typeid.equals("Object"))
-					out.println("\tret i32 %" + ret_val);
-				else
-					out.println("\tret void");
-				out.println("}\n");
-
-
-
-			}
-
-		}
-		for(int i = 0; i < theFeatures.size(); ++i)
-		{
-			AST.feature ftr = new AST.feature();
-			ftr = theFeatures.get(i);
-			if(ftr.getClass() == AST.method.class)
-			{
-				
-				AST.expression expr = new AST.expression();
-				AST.method temp = (AST.method)ftr;
+				methodList.add(temp);
 				if(temp.name.equals("main"))
-					continue;
-				expr = temp.body;
-				ret_val = -1;
-				var_counter = 0;
-				label_ct = 0;
-				String s = "";
-				Boolean flag = false;
-				if(temp.typeid.equals("Object"))
-					s = "void";
-				else if(temp.typeid.equals("Int"))
-					s = "i32";
-				else if(temp.typeid.equals("Bool"))
-					s = "i8";
-				out.print("define " + s + " @" + temp.name + "(");
-				if(!temp.name.equals("main")){
-					out.print("%class.A* %this");
-					flag = true;
-				}
-				for(int j = 0; j < temp.formals.size(); j++){
-					AST.formal temp2 = temp.formals.get(j);
-					if(flag)
-						out.print(", ");
-					else
-						flag = true;
-					if(temp2.typeid.equals("Object"))
-						s = "void";
-					else if(temp2.typeid.equals("Int"))
-						s = "i32";
-					else if(temp2.typeid.equals("Bool"))
-						s = "i8";
-					out.print(s + " %" + temp2.name);						
-				}
-				out.print(") {");
-				out.println("\nentry:");
-				if(temp.name.equals("main")){
-					out.println("\t%this = alloca %class.A, align 4");
-				}
-				out.println("\t%this.addr = alloca %class.A*, align 8");
-  				out.println("\tstore %class.A* %this, %class.A** %this.addr, align 8");
- 				out.println("\t%this1 = load %class.A*, %class.A** %this.addr, align 8");
- 				for(AST.formal e : temp.formals){
- 					int size = e.typeid.equals("Int") ? 32 : 8;
- 					out.println("\t%" + e.name + ".addr = alloca i" + size + ", align " + (size/8));
-  					out.println("\tstore i" + size + " %" + e.name + ", i"+size+"* %" + e.name + ".addr, align " + (size/8));
- 				}
- 				if(temp.name.equals("main")){
- 					for(AST.attr exp : atrExp){
- 						AST.assign as = new AST.assign(exp.name, exp.value, 0);
- 						as.type = exp.typeid;
- 						ProcessStr(as);
- 					}
- 				}
-
-				ProcessStr(expr);
-				ret_val = var_counter - 1;
-				if(!temp.typeid.equals("Object"))
-					out.println("\tret i32 %" + ret_val);
-				else
-					out.println("\tret void");
-				out.println("}\n");
-
-
-
+					main_index = methodList.size() - 1;
 			}
-
 		}
 
+		ProcessMethod(methodList.get(main_index));
+		for(int i = 0; i < methodList.size(); i++){
+			if(i!=main_index)
+				ProcessMethod(methodList.get(i));
+		}
+
+	}
+
+	private void ProcessMethod(AST.method temp){
+		AST.expression expr = new AST.expression();
+		expr = temp.body;
+		ret_val = -1;
+		var_counter = 0;
+		label_ct = 0;
+		String s = "";
+		Boolean flag = false;
+		if(temp.typeid.equals("Object"))
+			s = "void";
+		else if(temp.typeid.equals("Int"))
+			s = "i32";
+		else if(temp.typeid.equals("Bool"))
+			s = "i8";
+		out.print("define " + s + " @" + temp.name + "(");
+		if(!temp.name.equals("main")){
+			out.print("%class.Main* %obj");
+			flag = true;
+		}
+		for(int j = 0; j < temp.formals.size(); j++){
+			AST.formal temp2 = temp.formals.get(j);
+			if(flag)
+				out.print(", ");
+			else
+				flag = true;
+			if(temp2.typeid.equals("Object"))
+				s = "void";
+			else if(temp2.typeid.equals("Int"))
+				s = "i32";
+			else if(temp2.typeid.equals("Bool"))
+				s = "i8";
+			out.print(s + " %" + temp2.name);						
+		}
+		out.print(") {");
+		out.println("\nentry:");
+		if(temp.name.equals("main")){
+			out.println("\t%this1 = alloca %class.Main, align 4");
+		}
+		else{
+			out.println("\t%this_ = alloca %class.Main*, align 8");
+			out.println("\tstore %class.Main* %obj, %class.Main** %this_, align 8");
+			out.println("\t%this1 = load %class.Main*, %class.Main** %this_, align 8");
+		}
+		for(AST.formal e : temp.formals){
+			int size = e.typeid.equals("Int") ? 32 : 8;
+			out.println("\t%" + e.name + "_ = alloca i" + size + ", align " + (size/8));
+			out.println("\tstore i" + size + " %" + e.name + ", i"+size+"* %" + e.name + "_, align " + (size/8));
+		}
+		if(temp.name.equals("main")){
+			for(AST.attr exp : atrExp){
+				AST.assign as = new AST.assign(exp.name, exp.value, 0);
+				as.type = exp.typeid;
+				ProcessStr(as);
+			}
+		}
+		ProcessStr(expr);
+		ret_val = var_counter - 1;
+		if(!temp.typeid.equals("Object"))
+			out.println("\tret i32 %" + ret_val);
+		else
+			out.println("\tret void");
+		out.println("}\n");
 	}
 
 	private void ProcessStr(AST.expression expr) {
@@ -226,7 +158,6 @@ public class Codegen{
 			ProcessStr((AST.string_const)expr);
 		else if(expr.getClass() == AST.bool_const.class)
 			ProcessStr((AST.bool_const)expr);
-		
 		else if(expr.getClass() == AST.object.class)
 			ProcessStr((AST.object)expr);
 		else if(expr.getClass() == AST.block.class)
@@ -235,9 +166,6 @@ public class Codegen{
 			ProcessStr((AST.cond)expr);
 		else if(expr.getClass() == AST.loop.class)
 			ProcessStr((AST.loop)expr);
-		//else if(expr.getClass() == AST.no_expr.class)
-		//		ProcessStr((AST.no_expr)expr);
-		
 		else if(expr.getClass() == AST.plus.class)
 			ProcessStr((AST.plus)expr);
 		else if(expr.getClass() == AST.sub.class)
@@ -256,9 +184,6 @@ public class Codegen{
 			ProcessStr((AST.eq)expr);
 		else if(expr.getClass() == AST.neg.class)
 			ProcessStr((AST.neg)expr);
-
-			
-				
 	}
 
 	private void ProcessStr(AST.plus x){
@@ -300,23 +225,22 @@ public class Codegen{
 	private void ProcessStr(AST.object x) {
 		int index = attributes.indexOf(x.name);
 		if(index!=-1){
-			
 			if(x.type.equals("Int")){
-				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.Main, %class.Main* %this1, i32 0, i32 "+index);
 				var_counter++;
 				out.println("\t"+"%" + var_counter + " = load i32, i32* %" + (var_counter-1) + ", align 4");
 			}
 			else if(x.type.equals("Bool")){
-				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.Main, %class.Main* %this1, i32 0, i32 "+index);
 				var_counter++;
 				out.println("\t"+"%" + var_counter + " = load i8, i8* %" + (var_counter-1) + ", align 4");
 			}
 		}
 		else{
 			if(x.type.equals("Int"))
-				out.println("\t"+"%" + var_counter + " = load i32, i32* %" + x.name + ".addr" + ", align 4");
+				out.println("\t"+"%" + var_counter + " = load i32, i32* %" + x.name + "_" + ", align 4");
 			else if(x.type.equals("Bool"))
-				out.println("\t"+"%" + var_counter + " = load i8, i8* %" + x.name + ".addr" + ", align 4");
+				out.println("\t"+"%" + var_counter + " = load i8, i8* %" + x.name + "_" + ", align 4");
 		}
 		var_counter++;
 	}
@@ -359,7 +283,7 @@ public class Codegen{
 		if(x.type.equals("Int")){
 			if(index!=-1){
 				cur = var_counter;
-				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.Main, %class.Main* %this1, i32 0, i32 "+index);
 				var_counter++;
 			}
 			out.println("\t"+"store i32 %" + (var_counter-2) + ", i32* %" + (var_counter-1) + ", align 4");
@@ -371,7 +295,7 @@ public class Codegen{
 			}
 			if(index!=-1){
 				cur = var_counter;
-				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 "+index);
+				out.println("\t"+"%"+var_counter+" = getelementptr inbounds %class.Main, %class.Main* %this1, i32 0, i32 "+index);
 				var_counter++;
 			}	
 			out.println("\t"+"store i8 %" + (var_counter-2) + ", i8* %" + cur + ", align 4");
@@ -430,7 +354,6 @@ public class Codegen{
 		l1 = ++label_ct;
 		l2 = ++label_ct;
 		l3 = ++label_ct;
-		//out.println("\t"+"COND BEGIN LABEL: " + label_ct);
 		ProcessStr(x.predicate);
 		out.println("\t"+"br i1 %" + (var_counter-1) + ", label %Label" +  l1 + ", label %Label" +  l2);
 		out.println("\nLabel" + l1 + ":");
@@ -447,7 +370,6 @@ public class Codegen{
 		l1 = ++label_ct;
 		l2 = ++label_ct;
 		l3 = ++label_ct;
-		//out.println("\t"+"COND BEGIN LABEL: " + label_ct);
 		out.println("\t"+"br label %Label" + l1);
 		out.println("\nLabel" + l1 + ":");
 		ProcessStr(x.predicate);
